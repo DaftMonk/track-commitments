@@ -37,20 +37,21 @@ function getDateRange(type, isAutomated = false) {
   const estNow = zonedTimeToUtc(now, 'America/New_York');
   
   if (type === 'daily') {
-    const today4am = zonedTimeToUtc(
-      new Date(estNow).setHours(4, 0, 0, 0),
-      'America/New_York'
-    );
+    const today = startOfDay(estNow);
+    const today4am = new Date(today.getTime() + 4 * 60 * 60 * 1000);
     
     let start, end;
     if (isAutomated) {
       start = new Date(today4am.getTime() - 24 * 60 * 60 * 1000);
       end = today4am;
     } else {
-      start = estNow.getHours() < 4 ? 
-        new Date(today4am.getTime() - 24 * 60 * 60 * 1000) :
-        today4am;
-      end = estNow;
+      if (estNow.getHours() < 4) {
+        start = new Date(today4am.getTime() - 24 * 60 * 60 * 1000);
+        end = estNow;
+      } else {
+        start = today4am;
+        end = estNow;
+      }
     }
     
     return { start, end };
@@ -59,8 +60,9 @@ function getDateRange(type, isAutomated = false) {
     const weekEnd = endOfWeek(estNow, { weekStartsOn: 0 });
     
     if (isAutomated) {
+      const prevWeekStart = new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
       return {
-        start: new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000),
+        start: prevWeekStart,
         end: weekStart
       };
     } else {
@@ -174,11 +176,8 @@ export async function getActiveCommitments(userId) {
   try {
     const now = new Date();
     const estNow = zonedTimeToUtc(now, 'America/New_York');
-    
-    const today4am = zonedTimeToUtc(
-      new Date(estNow).setHours(4, 0, 0, 0),
-      'America/New_York'
-    );
+    const today = startOfDay(estNow);
+    const today4am = new Date(today.getTime() + 4 * 60 * 60 * 1000);
     
     const dailyStart = estNow.getHours() < 4 ? 
       new Date(today4am.getTime() - 24 * 60 * 60 * 1000) :
@@ -250,6 +249,7 @@ export async function getRecap(type, isAutomated = false) {
     const { start, end } = getDateRange(type, isAutomated);
     
     if (!start || !end || start >= end) {
+      console.log('Date range debug:', { start, end, type, isAutomated });
       throw new Error('Invalid date range');
     }
 
