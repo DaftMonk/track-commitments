@@ -4,15 +4,32 @@ import { Commitment } from './models/Commitment.js';
 import { verifyWithGPT } from './gptVerification.js';
 
 function parseRecurringDays(daysString) {
-  const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const dayMap = {
+    'mon': 'monday',
+    'tue': 'tuesday',
+    'wed': 'wednesday',
+    'thu': 'thursday',
+    'fri': 'friday',
+    'sat': 'saturday',
+    'sun': 'sunday',
+    'monday': 'monday',
+    'tuesday': 'tuesday',
+    'wednesday': 'wednesday',
+    'thursday': 'thursday',
+    'friday': 'friday',
+    'saturday': 'saturday',
+    'sunday': 'sunday'
+  };
+
   const days = daysString.toLowerCase().split(',').map(day => day.trim());
+  const normalizedDays = days.map(day => dayMap[day]);
   
-  const invalidDays = days.filter(day => !validDays.includes(day));
+  const invalidDays = normalizedDays.filter(day => !day);
   if (invalidDays.length > 0) {
-    throw new Error(`Invalid days: ${invalidDays.join(', ')}`);
+    throw new Error(`Invalid days: ${days.filter((_, i) => !normalizedDays[i]).join(', ')}`);
   }
   
-  return days;
+  return normalizedDays;
 }
 
 function getDateRange(type, isAutomated = false) {
@@ -39,7 +56,6 @@ function getDateRange(type, isAutomated = false) {
       };
     }
   } else {
-    // For weekly, use current week for manual recaps
     const weekStart = startOfWeek(estNow, { weekStartsOn: 0 });
     const weekEnd = endOfWeek(estNow, { weekStartsOn: 0 });
     
@@ -230,7 +246,6 @@ export async function deleteCommitment(userId, commitmentId) {
   }
 }
 
-
 export async function getRecap(type, isAutomated = false) {
   try {
     const { start, end } = getDateRange(type, isAutomated);
@@ -262,7 +277,6 @@ export async function getRecap(type, isAutomated = false) {
 
       days.forEach(day => {
         const dayName = format(day, 'EEEE').toLowerCase();
-        // Only process days that are in the recurring schedule
         if (commitment.recurring.days.includes(dayName)) {
           const dateStr = format(day, 'yyyy-MM-dd');
           const completion = commitment.recurring.completions.find(c => 
@@ -272,12 +286,11 @@ export async function getRecap(type, isAutomated = false) {
           dailyStatus[dateStr] = {
             completed: completion?.completed || false,
             proof: completion?.proof || null,
-            scheduled: true // Mark this as a scheduled day
+            scheduled: true
           };
         }
       });
 
-      // Filter out any dates that aren't in the recurring schedule
       const filteredDailyStatus = Object.entries(dailyStatus)
         .filter(([_, status]) => status.scheduled)
         .reduce((acc, [date, status]) => {
