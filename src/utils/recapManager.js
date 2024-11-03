@@ -1,22 +1,33 @@
 import { EmbedBuilder } from 'discord.js';
 import { getRecap } from '../commitments.js';
-import { format, isWithinInterval, parseISO } from 'date-fns';
+import { format, isWithinInterval, parseISO, eachDayOfInterval } from 'date-fns';
 import { zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
 
-function formatDailyStatus(dailyStatus) {
+function formatDailyStatus(dailyStatus, commitment, start, end) {
   if (!dailyStatus || Object.keys(dailyStatus).length === 0) return '';
   
-  return Object.entries(dailyStatus)
-    .filter(([_, status]) => status.scheduled)
+  // Get all days in the interval
+  const days = eachDayOfInterval({ start, end });
+  
+  // Create a map of all scheduled days with their status
+  const statusMap = days.reduce((acc, day) => {
+    const dayName = format(day, 'EEEE').toLowerCase();
+    if (commitment.recurring && commitment.recurring.days.includes(dayName)) {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      const status = dailyStatus[dateStr] || { completed: false, scheduled: true };
+      acc[dateStr] = status;
+    }
+    return acc;
+  }, {});
+
+  return Object.entries(statusMap)
     .map(([dateStr, status]) => {
       const emoji = status.completed ? '✅' : '❌';
-      // Parse the date string and convert to EST/EDT
       const date = parseISO(dateStr);
       const estDate = utcToZonedTime(date, 'America/New_York');
       return `${format(estDate, 'EEE, MMM d')}: ${emoji}`;
     })
     .sort((a, b) => {
-      // Extract dates from the formatted strings and compare them
       const dateA = new Date(a.split(':')[0]);
       const dateB = new Date(b.split(':')[0]);
       return dateA - dateB;
@@ -101,11 +112,9 @@ export async function createRecapEmbed(client, recap, type, guild) {
           .join(', ');
         fieldValue += `**Schedule:** Every ${days}\n`;
 
-        if (commitment.dailyStatus) {
-          const dailyStatusText = formatDailyStatus(commitment.dailyStatus);
-          if (dailyStatusText) {
-            fieldValue += `\n**Daily Progress:**\n${dailyStatusText}`;
-          }
+        const dailyStatusText = formatDailyStatus(commitment.dailyStatus, commitment, recap.start, recap.end);
+        if (dailyStatusText) {
+          fieldValue += `\n**Daily Progress:**\n${dailyStatusText}`;
         }
       }
 
