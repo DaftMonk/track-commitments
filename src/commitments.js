@@ -38,23 +38,22 @@ function getDateRange(type, isAutomated = false) {
   
   if (type === 'daily') {
     const today4am = zonedTimeToUtc(
-      startOfDay(estNow).setHours(4),
+      new Date(estNow).setHours(4, 0, 0, 0),
       'America/New_York'
     );
     
+    let start, end;
     if (isAutomated) {
-      return {
-        start: new Date(today4am - 24 * 60 * 60 * 1000),
-        end: new Date(today4am)
-      };
+      start = new Date(today4am.getTime() - 24 * 60 * 60 * 1000);
+      end = today4am;
     } else {
-      return {
-        start: estNow.getHours() < 4 ? 
-          new Date(today4am - 24 * 60 * 60 * 1000) :
-          new Date(today4am),
-        end: estNow
-      };
+      start = estNow.getHours() < 4 ? 
+        new Date(today4am.getTime() - 24 * 60 * 60 * 1000) :
+        today4am;
+      end = estNow;
     }
+    
+    return { start, end };
   } else {
     const weekStart = startOfWeek(estNow, { weekStartsOn: 0 });
     const weekEnd = endOfWeek(estNow, { weekStartsOn: 0 });
@@ -62,7 +61,7 @@ function getDateRange(type, isAutomated = false) {
     if (isAutomated) {
       return {
         start: new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000),
-        end: new Date(weekStart.getTime())
+        end: weekStart
       };
     } else {
       return {
@@ -177,13 +176,13 @@ export async function getActiveCommitments(userId) {
     const estNow = zonedTimeToUtc(now, 'America/New_York');
     
     const today4am = zonedTimeToUtc(
-      startOfDay(estNow).setHours(4),
+      new Date(estNow).setHours(4, 0, 0, 0),
       'America/New_York'
     );
     
     const dailyStart = estNow.getHours() < 4 ? 
-      new Date(today4am - 24 * 60 * 60 * 1000) :
-      new Date(today4am);
+      new Date(today4am.getTime() - 24 * 60 * 60 * 1000) :
+      today4am;
       
     const weekStart = startOfWeek(estNow, { weekStartsOn: 0 });
 
@@ -250,6 +249,10 @@ export async function getRecap(type, isAutomated = false) {
   try {
     const { start, end } = getDateRange(type, isAutomated);
     
+    if (!start || !end || start >= end) {
+      throw new Error('Invalid date range');
+    }
+
     const commitments = await Commitment.find({
       $or: [
         {
